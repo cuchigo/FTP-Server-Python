@@ -2,6 +2,7 @@ import socket
 import os
 from datetime import datetime
 import time
+import glob
 from ftplib import *
 def open_PD(port):
     print(port)
@@ -19,19 +20,7 @@ def open_PD(port):
 
 
 
-def send_file_list(conn):
-    files = os.listdir('folder_ftp')
-    file_list = []
-    for file in files:
-        file_stat = os.stat(os.path.join('folder_ftp', file))
-        file_size = file_stat.st_size
-        file_time = datetime.fromtimestamp(file_stat.st_mtime).strftime('%b %d %H:%M')
-        file_perm = oct(file_stat.st_mode)[-3:]
-        file_list.append(f'-{file_perm} 1 user group {file_size} {file_time} {file}\n')
 
-    conn.sendall(b'150 Here comes the directory listing.\r\n')
-    conn.sendall(''.join(file_list) + "\r".encode())
-    conn.sendall(b'226 Directory send OK.\r\n')
 
 
 def open_FTP():
@@ -42,7 +31,7 @@ def open_FTP():
     print(f"Conexión establecida con {addr[0]}:{addr[1]}")
     conn.sendall(b'220 Bienvenido al servidor FTP\r\n')
 
-    while True:
+    while conn:
         data = conn.recv(1024)
         if 'USER' in data.decode():
             print("User: "+data.decode())
@@ -59,7 +48,7 @@ def open_FTP():
             conn.sendall(b'211 No features\r\n')
         elif 'PWD' in data.decode():
             print("PWD")
-            conn.sendall(str("257 "+os.getcwd()+ "/folder_ftp is the current directory\r\n").encode())
+            conn.sendall(str("257 "+os.getcwd()+ " is the current directory\r\n").encode())
         elif 'TYPE I' in data.decode():
             print("TYPE I")
             conn.sendall(b'200 Type set to I\r\n')
@@ -76,11 +65,21 @@ def open_FTP():
             conn.sendall(b"200 Command okay\r\n")
             #open_PD(port)
         elif 'LIST' in data.decode():
+            conn.sendall(b"200 Command okay\r\n")
+            conn.sendall(b'125 Data connection already open; transfer starting.\r\n')
             
-            send_file_list(conn)
-        
+            files = os.listdir() # Obtener la lista de archivos y directorios
+            for file in files: # Iterar sobre la lista
+                conn.send(file.encode("utf-8")) # Enviar cada nombre al cliente
+                conn.send("\n".encode("utf-8")) # Enviar un salto de línea para separar los nombres
+            conn.send(b"\n\r")
 
+            
+            conn.sendall(b'250 Requested file action okay, completed.\r\n')
+        elif data.decode() == "":
+            break    
         print(f"Comando recibido: {data.decode()}")
+        
     conn.close()
     
 
